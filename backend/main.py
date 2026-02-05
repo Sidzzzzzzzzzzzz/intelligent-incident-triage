@@ -37,20 +37,32 @@ app = FastAPI(
 )
 
 # ===============================
-# CORS Configuration
+# CORS Configuration (FINAL FIX)
 # ===============================
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+FRONTEND_URL = os.getenv("FRONTEND_URL")
+
+allowed_origins = [
+    "http://localhost:5173",   # local dev
+    "http://localhost:4173",   # vite preview
+]
+
+# Add deployed frontend automatically if exists
+if FRONTEND_URL:
+    allowed_origins.append(FRONTEND_URL)
+
+# TEMP safety fallback (optional but recommended)
+# Remove later if you want strict security
+allowed_origins.append("*")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:4173",  # preview mode
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 # ===============================
