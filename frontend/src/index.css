@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===============================
+   GLOBAL BASE STYLES
+=================================*/
+
+@layer base {
+  html {
+    @apply bg-slate-950 text-slate-200;
+  }
+
+  body {
+    @apply antialiased font-sans;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-semibold text-white;
+  }
+
+  p {
+    @apply text-slate-400;
+  }
+
+  ::selection {
+    @apply bg-blue-500 text-white;
+  }
+}
+
+/* ===============================
+   REUSABLE COMPONENT CLASSES
+=================================*/
+
+@layer components {
+  .card {
+    @apply bg-slate-900 border border-slate-800 rounded-2xl shadow-lg;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-xl hover:border-slate-700;
+  }
+
+  .kpi-card {
+    @apply card p-6 card-hover;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold text-white;
+  }
+
+  .table-header {
+    @apply text-[11px] uppercase tracking-widest text-slate-500;
+  }
+
+  .badge {
+    @apply px-3 py-1 rounded-full text-xs font-medium border;
+  }
+
+  .badge-critical {
+    @apply bg-red-500/10 text-red-400 border-red-500/20;
+  }
+
+  .badge-high {
+    @apply bg-orange-500/10 text-orange-400 border-orange-500/20;
+  }
+
+  .badge-medium {
+    @apply bg-yellow-500/10 text-yellow-400 border-yellow-500/20;
+  }
+
+  .badge-low {
+    @apply bg-emerald-500/10 text-emerald-400 border-emerald-500/20;
+  }
+}
+
+/* ===============================
+   SCROLLBAR STYLING
+=================================*/
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 9999px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+}

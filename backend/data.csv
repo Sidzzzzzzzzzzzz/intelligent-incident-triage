@@ -1,0 +1,16 @@
+message,priority
+Database connection timed out,Critical
+Server is down,Critical
+Payment API failure,Critical
+Unauthorized access detected,Critical
+Payment gateway responding slowly,High
+CPU usage 90%,High
+Memory leak detected,High
+API latency high,High
+Login page color mismatch,Low
+Typo in footer,Low
+User profile picture loading slow,Low
+Change password email not sent,Medium
+Reset link expired,Medium
+Cannot upload avatar,Medium
+Dashboard taking 5 seconds to load,High
