@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { Routes, Route, Link, useLocation } from "react-router-dom";
 import axios from "axios";
 import {
   PieChart,
@@ -19,6 +20,68 @@ const WS_URL = import.meta.env.VITE_WS_URL;
 // MAIN APP
 // =============================
 function App() {
+  return (
+    <div className="flex min-h-screen bg-slate-950 text-slate-200 font-sans">
+      <Toaster position="top-right" />
+
+      <Sidebar />
+
+      <div className="flex-1 ml-64 p-10">
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/live" element={<LiveEvents />} />
+          <Route path="/history" element={<History />} />
+          <Route path="/settings" element={<Settings />} />
+        </Routes>
+      </div>
+    </div>
+  );
+}
+
+// =============================
+// SIDEBAR
+// =============================
+function Sidebar() {
+  return (
+    <div className="w-64 bg-slate-950 border-r border-slate-800 fixed h-full flex flex-col">
+      <div className="h-20 flex items-center justify-center border-b border-slate-800">
+        <span className="text-2xl font-semibold text-blue-400">
+          OpsGuard.
+        </span>
+      </div>
+
+      <nav className="flex-1 p-6 space-y-3">
+        <MenuItem to="/">📊 Dashboard</MenuItem>
+        <MenuItem to="/live">⚡ Live Events</MenuItem>
+        <MenuItem to="/history">📁 Incident History</MenuItem>
+        <MenuItem to="/settings">⚙️ Configuration</MenuItem>
+      </nav>
+    </div>
+  );
+}
+
+function MenuItem({ to, children }) {
+  const location = useLocation();
+  const active = location.pathname === to;
+
+  return (
+    <Link
+      to={to}
+      className={`block px-3 py-2 rounded-lg transition ${
+        active
+          ? "bg-slate-800 text-white"
+          : "text-slate-400 hover:bg-slate-800 hover:text-white"
+      }`}
+    >
+      {children}
+    </Link>
+  );
+}
+
+// =============================
+// DASHBOARD PAGE
+// =============================
+function Dashboard() {
   const [logs, setLogs] = useState([]);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
@@ -35,9 +98,7 @@ function App() {
     low: 0,
   });
 
-  // =============================
-  // FETCH LOGS
-  // =============================
+  // Fetch Logs
   useEffect(() => {
     const fetchLogs = async () => {
       try {
@@ -46,7 +107,6 @@ function App() {
         calculateStats(response.data);
       } catch (error) {
         toast.error("⚠️ Backend connection failed");
-        console.error(error);
       } finally {
         setLoading(false);
       }
@@ -55,18 +115,12 @@ function App() {
     if (API_URL) fetchLogs();
   }, []);
 
-  // =============================
-  // ROBUST WEBSOCKET WITH RECONNECT
-  // =============================
+  // WebSocket
   useEffect(() => {
     if (!WS_URL) return;
 
     const connectWebSocket = () => {
       wsRef.current = new WebSocket(WS_URL);
-
-      wsRef.current.onopen = () => {
-        console.log("WebSocket connected");
-      };
 
       wsRef.current.onmessage = (event) => {
         const message = JSON.parse(event.data);
@@ -76,14 +130,9 @@ function App() {
           calculateStats(updated);
           return updated;
         });
-
-        if (message.priority === "Critical") {
-          toast.error(`🚨 Critical Alert: ${message.source}`);
-        }
       };
 
       wsRef.current.onclose = () => {
-        console.log("WebSocket disconnected. Reconnecting...");
         reconnectTimeout.current = setTimeout(connectWebSocket, 3000);
       };
 
@@ -101,9 +150,6 @@ function App() {
     };
   }, []);
 
-  // =============================
-  // FILTER LOGS
-  // =============================
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
       const matchesFilter =
@@ -119,9 +165,6 @@ function App() {
     });
   }, [logs, filter, search]);
 
-  // =============================
-  // STATS
-  // =============================
   function calculateStats(data) {
     const counts = {
       total: data.length,
@@ -153,164 +196,121 @@ function App() {
     70
   );
 
-  // =============================
-  // UI
-  // =============================
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-200 font-sans">
-      <Toaster position="top-right" />
+    <>
+      <h1 className="text-4xl font-semibold text-white mb-8">
+        Command Center
+      </h1>
 
-      <div className="w-64 bg-slate-950 border-r border-slate-800 fixed h-full flex flex-col">
-        <div className="h-20 flex items-center justify-center border-b border-slate-800">
-          <span className="text-2xl font-semibold text-blue-400">
-            OpsGuard.
-          </span>
+      {loading ? (
+        <div className="text-slate-400 animate-pulse">
+          Loading incidents...
         </div>
-
-        <nav className="flex-1 p-6 space-y-3">
-          <MenuItem active>📊 Dashboard</MenuItem>
-          <MenuItem>⚡ Live Events</MenuItem>
-          <MenuItem>📁 Incident History</MenuItem>
-          <MenuItem>⚙️ Configuration</MenuItem>
-        </nav>
-      </div>
-
-      <div className="flex-1 ml-64 p-10">
-        <h1 className="text-4xl font-semibold text-white mb-8">
-          Command Center
-        </h1>
-
-        {loading ? (
-          <div className="text-slate-400 animate-pulse">
-            Loading incidents...
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <KpiCard label="Total Incidents" value={stats.total} />
+            <KpiCard label="Critical" value={stats.critical} critical />
+            <KpiCard label="High Priority" value={stats.high} />
+            <KpiCard
+              label="System Health"
+              value={`${systemHealth}%`}
+              healthy
+            />
           </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <KpiCard label="Total Incidents" value={stats.total} />
-              <KpiCard label="Critical" value={stats.critical} critical />
-              <KpiCard label="High Priority" value={stats.high} />
-              <KpiCard
-                label="System Health"
-                value={`${systemHealth}%`}
-                healthy
-              />
-            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-                <div className="flex justify-between mb-4">
-                  <h2 className="text-lg font-semibold">
-                    Live Incidents
-                  </h2>
-
-                  <div className="flex gap-2">
-                    <input
-                      placeholder="Search..."
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1 text-sm"
-                    />
-                    <select
-                      value={filter}
-                      onChange={(e) => setFilter(e.target.value)}
-                      className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1 text-sm"
-                    >
-                      <option>All</option>
-                      <option>Critical</option>
-                      <option>High</option>
-                      <option>Medium</option>
-                      <option>Low</option>
-                    </select>
-                  </div>
-                </div>
-
-                <table className="w-full text-sm">
-                  <thead className="text-xs uppercase tracking-wider text-slate-500">
-                    <tr>
-                      <th className="p-3 text-left">Time</th>
-                      <th className="p-3 text-left">Source</th>
-                      <th className="p-3 text-left">Message</th>
-                      <th className="p-3 text-right">Priority</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredLogs.map((log, i) => (
-                      <tr
-                        key={i}
-                        className="border-t border-slate-800 hover:bg-slate-800/50 transition"
-                      >
-                        <td className="p-3 text-xs font-mono">
-                          {log.timestamp}
-                        </td>
-                        <td className="p-3 text-slate-400">
-                          {log.source || "System"}
-                        </td>
-                        <td className="p-3">{log.message}</td>
-                        <td className="p-3 text-right">
-                          <PriorityBadge priority={log.priority} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-                <h2 className="text-lg font-semibold mb-4">
-                  Severity Distribution
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+              <div className="flex justify-between mb-4">
+                <h2 className="text-lg font-semibold">
+                  Live Incidents
                 </h2>
 
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={chartData}
-                      dataKey="value"
-                      innerRadius={60}
-                      outerRadius={90}
-                    >
-                      {chartData.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                <div className="flex gap-2">
+                  <input
+                    placeholder="Search..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1 text-sm"
+                  />
+                  <select
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1 text-sm"
+                  >
+                    <option>All</option>
+                    <option>Critical</option>
+                    <option>High</option>
+                    <option>Medium</option>
+                    <option>Low</option>
+                  </select>
+                </div>
               </div>
+
+              <table className="w-full text-sm">
+                <tbody>
+                  {filteredLogs.map((log, i) => (
+                    <tr key={i}>
+                      <td>{log.timestamp}</td>
+                      <td>{log.source || "System"}</td>
+                      <td>{log.message}</td>
+                      <td>
+                        <PriorityBadge priority={log.priority} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </>
-        )}
-      </div>
-    </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    dataKey="value"
+                    innerRadius={60}
+                    outerRadius={90}
+                  >
+                    {chartData.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
+}
+
+// =============================
+// OTHER PAGES
+// =============================
+function LiveEvents() {
+  return <div className="text-2xl">⚡ Live Events Page</div>;
+}
+
+function History() {
+  return <div className="text-2xl">📁 Incident History Page</div>;
+}
+
+function Settings() {
+  return <div className="text-2xl">⚙️ Settings Page</div>;
 }
 
 // =============================
 // COMPONENTS
 // =============================
-
-function MenuItem({ children, active }) {
-  return (
-    <div
-      className={`px-3 py-2 rounded-lg cursor-pointer transition ${
-        active
-          ? "bg-slate-800 text-white"
-          : "text-slate-400 hover:bg-slate-800 hover:text-white"
-      }`}
-    >
-      {children}
-    </div>
-  );
-}
-
 function KpiCard({ label, value, critical, healthy }) {
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md">
-      <div className="text-xs uppercase tracking-wider text-slate-500">
-        {label}
-      </div>
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <div className="text-xs text-slate-500">{label}</div>
       <div
-        className={`text-3xl font-semibold mt-2 ${
+        className={`text-3xl mt-2 ${
           critical
             ? "text-red-400"
             : healthy
@@ -326,23 +326,20 @@ function KpiCard({ label, value, critical, healthy }) {
 
 function PriorityBadge({ priority }) {
   const colorMap = {
-    Critical: "bg-red-500/20 text-red-400",
-    High: "bg-orange-500/20 text-orange-400",
-    Medium: "bg-yellow-500/20 text-yellow-400",
-    Low: "bg-green-500/20 text-green-400",
+    Critical: "text-red-400",
+    High: "text-orange-400",
+    Medium: "text-yellow-400",
+    Low: "text-green-400",
   };
 
   return (
-    <span
-      className={`px-3 py-1 rounded-full text-xs font-medium ${
-        colorMap[priority] || "bg-slate-800 text-slate-300"
-      }`}
-    >
+    <span className={colorMap[priority] || "text-slate-300"}>
       {priority}
     </span>
   );
 }
 
 export default App;
+
 
 
