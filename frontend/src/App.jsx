@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import {
   PieChart,
@@ -24,6 +24,9 @@ function App() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
+  const wsRef = useRef(null);
+  const reconnectTimeout = useRef(null);
+
   const [stats, setStats] = useState({
     total: 0,
     critical: 0,
@@ -32,21 +35,10 @@ function App() {
     low: 0,
   });
 
-  const [systemMetrics, setSystemMetrics] = useState({
-    cpu: 20,
-    memory: 50,
-    latency: 25,
-  });
-
   // =============================
   // FETCH LOGS
   // =============================
   useEffect(() => {
-    if (!API_URL) {
-      toast.error("Missing VITE_API_URL in .env");
-      return;
-    }
-
     const fetchLogs = async () => {
       try {
         const response = await axios.get(`${API_URL}/api/v1/logs`);
@@ -60,61 +52,57 @@ function App() {
       }
     };
 
-    fetchLogs();
+    if (API_URL) fetchLogs();
   }, []);
 
   // =============================
-  // WEBSOCKET
+  // ROBUST WEBSOCKET WITH RECONNECT
   // =============================
   useEffect(() => {
     if (!WS_URL) return;
 
-    const ws = new WebSocket(WS_URL);
+    const connectWebSocket = () => {
+      wsRef.current = new WebSocket(WS_URL);
 
-    ws.onopen = () => {
-      console.log("WebSocket connected");
-    };
+      wsRef.current.onopen = () => {
+        console.log("WebSocket connected");
+      };
 
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
+      wsRef.current.onmessage = (event) => {
+        const message = JSON.parse(event.data);
 
-      setLogs((prev) => {
-        const updated = [message, ...prev].slice(0, 100);
-        calculateStats(updated);
-        return updated;
-      });
-
-      if (message.priority === "Critical") {
-        toast.error(`🚨 Critical Alert: ${message.source}`, {
-          duration: 4000,
+        setLogs((prev) => {
+          const updated = [message, ...prev].slice(0, 100);
+          calculateStats(updated);
+          return updated;
         });
-      }
+
+        if (message.priority === "Critical") {
+          toast.error(`🚨 Critical Alert: ${message.source}`);
+        }
+      };
+
+      wsRef.current.onclose = () => {
+        console.log("WebSocket disconnected. Reconnecting...");
+        reconnectTimeout.current = setTimeout(connectWebSocket, 3000);
+      };
+
+      wsRef.current.onerror = () => {
+        wsRef.current.close();
+      };
     };
 
-    ws.onerror = () => {
-      toast.error("WebSocket disconnected");
-    };
+    connectWebSocket();
 
-    return () => ws.close();
+    return () => {
+      if (wsRef.current) wsRef.current.close();
+      if (reconnectTimeout.current)
+        clearTimeout(reconnectTimeout.current);
+    };
   }, []);
 
   // =============================
-  // SYSTEM METRICS SIMULATION
-  // =============================
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSystemMetrics({
-        cpu: Math.floor(Math.random() * 40) + 10,
-        memory: Math.floor(Math.random() * 30) + 40,
-        latency: Math.floor(Math.random() * 20) + 20,
-      });
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // =============================
-  // FILTERED LOGS
+  // FILTER LOGS
   // =============================
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
@@ -172,7 +160,6 @@ function App() {
     <div className="flex min-h-screen bg-slate-950 text-slate-200 font-sans">
       <Toaster position="top-right" />
 
-      {/* SIDEBAR */}
       <div className="w-64 bg-slate-950 border-r border-slate-800 fixed h-full flex flex-col">
         <div className="h-20 flex items-center justify-center border-b border-slate-800">
           <span className="text-2xl font-semibold text-blue-400">
@@ -188,7 +175,6 @@ function App() {
         </nav>
       </div>
 
-      {/* MAIN */}
       <div className="flex-1 ml-64 p-10">
         <h1 className="text-4xl font-semibold text-white mb-8">
           Command Center
@@ -200,7 +186,6 @@ function App() {
           </div>
         ) : (
           <>
-            {/* KPI */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
               <KpiCard label="Total Incidents" value={stats.total} />
               <KpiCard label="Critical" value={stats.critical} critical />
@@ -212,9 +197,7 @@ function App() {
               />
             </div>
 
-            {/* TABLE + CHART */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* TABLE */}
               <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
                 <div className="flex justify-between mb-4">
                   <h2 className="text-lg font-semibold">
@@ -226,7 +209,7 @@ function App() {
                       placeholder="Search..."
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1 text-sm focus:ring-1 focus:ring-blue-500 outline-none"
+                      className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1 text-sm"
                     />
                     <select
                       value={filter}
@@ -273,7 +256,6 @@ function App() {
                 </table>
               </div>
 
-              {/* CHART */}
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
                 <h2 className="text-lg font-semibold mb-4">
                   Severity Distribution
@@ -323,7 +305,7 @@ function MenuItem({ children, active }) {
 
 function KpiCard({ label, value, critical, healthy }) {
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md hover:shadow-xl transition">
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md">
       <div className="text-xs uppercase tracking-wider text-slate-500">
         {label}
       </div>
@@ -362,4 +344,5 @@ function PriorityBadge({ priority }) {
 }
 
 export default App;
+
 
